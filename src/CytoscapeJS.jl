@@ -10,12 +10,16 @@ const cytoscape_asset = Bonito.Asset(
     joinpath(@__DIR__, "..", "assets", "cytoscape.js");
     name = "cytoscape"
 )
+const tooltip_asset = Bonito.ES6Module(
+    joinpath(@__DIR__, "..", "assets", "tooltip.js"),
+)
 
-struct Cytoscape{E, S, L, R, A}
+struct Cytoscape{E, S, L, R, T, A}
     elements::E
     stylesheet::S
     layout::L
     renderer::R
+    tooltip_attributes::T
     selection::Observable{Vector{String}}
     hovered::Observable{Union{Nothing, String}}
     positions::Observable{Dict{String, Any}}
@@ -31,6 +35,7 @@ function Cytoscape(
     stylesheet = [],
     layout = (; name = "fcose"),
     renderer = (; name = "canvas"),
+    tooltip_attributes = (; class="cytoscapejs-tooltip"),
     attributes = (; style = "width: 100%; height: 100%; min-height: 400px"),
 )
     Cytoscape(
@@ -38,6 +43,7 @@ function Cytoscape(
         as_observable(stylesheet),
         as_observable(layout),
         renderer,
+        tooltip_attributes,
         Observable(String[]),
         Observable{Union{Nothing, String}}(nothing),
         Observable(Dict{String, Any}()),
@@ -66,6 +72,8 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
     onload(session, container, js"""
         async function (container) {
             const cytoscape = await $(cytoscape_asset);
+            await document.fonts.ready;
+
             const cy = cytoscape({
                 container,
                 elements: $(graph.elements[]),
@@ -75,6 +83,8 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
             })
             container.cy = cy
             container.layout = $(graph.layout[]);
+            const { attachTooltip } = await $(tooltip_asset);
+            attachTooltip(cy, $(graph.tooltip_attributes));
             cy.on("select unselect", "node, edge", () => {
                 $(graph.selection).notify(
                     cy.elements(":selected").map(element => element.id())

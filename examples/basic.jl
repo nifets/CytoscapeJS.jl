@@ -11,7 +11,7 @@ elements = [
 stylesheet = [
     (; selector = "node", style = Dict(
         "label" => "data(label)",
-        "background-color" => "#3b82f6",
+        "color" => "#3b82f6",
     )),
     (; selector = "edge", style = Dict(
         "width" => 2,
