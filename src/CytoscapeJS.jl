@@ -11,10 +11,11 @@ const cytoscape_asset = Bonito.Asset(
     name = "cytoscape"
 )
 
-struct Cytoscape{E, S, L, A}
+struct Cytoscape{E, S, L, R, A}
     elements::E
     stylesheet::S
     layout::L
+    renderer::R
     selection::Observable{Vector{String}}
     hovered::Observable{Union{Nothing, String}}
     positions::Observable{Dict{String, Any}}
@@ -29,12 +30,14 @@ function Cytoscape(
     elements;
     stylesheet = [],
     layout = (; name = "fcose"),
+    renderer = (; name = "canvas"),
     attributes = (; style = "width: 100%; height: 100%; min-height: 400px"),
 )
     Cytoscape(
         as_observable(elements),
         as_observable(stylesheet),
         as_observable(layout),
+        renderer,
         Observable(String[]),
         Observable{Union{Nothing, String}}(nothing),
         Observable(Dict{String, Any}()),
@@ -68,6 +71,7 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
                 elements: $(graph.elements[]),
                 style: $(graph.stylesheet[]),
                 layout: $(graph.layout[]),
+                renderer: $(graph.renderer),
             })
             container.cy = cy
             container.layout = $(graph.layout[]);

@@ -27,7 +27,8 @@ stylesheet = [
     )),
 ]
 
-graph = Cytoscape(elements; stylesheet)
+# for large networks, enable webgl rendering
+graph = Cytoscape(elements; stylesheet, renderer=(;name="canvas", webgl=false))
 display(App(graph))
 
 # modify the graph
