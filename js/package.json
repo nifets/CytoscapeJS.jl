@@ -1,0 +1,13 @@
+{
+    "private": true,
+    "scripts": {
+        "build": "esbuild entry.js --bundle --minify --legal-comments=eof --format=iife --outfile=../assets/cytoscape.js"
+    },
+    "dependencies": {
+        "cytoscape": "3.34.2",
+        "cytoscape-fcose": "2.2.0"
+    },
+    "devDependencies": {
+        "esbuild": "0.28.2"
+    }
+}

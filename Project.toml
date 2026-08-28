@@ -1,0 +1,11 @@
+name = "CytoscapeJS"
+uuid = "5d7a634b-b62e-4929-ba77-69c999086e42"
+version = "0.1.0"
+authors = ["nifets <stefanmanol@gmail.com>"]
+
+[deps]
+Bonito = "824d6782-a2ef-11e9-3a09-e5662e0c26f8"
+Observables = "510215fc-4207-5dde-b226-833fc4488ee2"
+
+[compat]
+Observables = "0.5.5"
