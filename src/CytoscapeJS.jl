@@ -93,7 +93,22 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
             container.cy = cy
             container.layout = $(graph.layout[]);
             const { attachTooltip } = await $(tooltip_asset);
-            attachTooltip(cy, $(graph.tooltip_attributes));
+            const disposeTooltip = attachTooltip(
+                cy,
+                $(graph.tooltip_attributes),
+            );
+            const observer = new MutationObserver(() => {
+                if (container.isConnected) return;
+
+                observer.disconnect();
+                disposeTooltip();
+                if (!cy.destroyed()) cy.destroy();
+            });
+            observer.observe(document.documentElement, {
+                childList: true,
+                subtree: true,
+            });
+            cy.on("destroy", () => observer.disconnect());
             cy.on("select unselect", "node, edge", () => {
                 $(graph.selection).notify(
                     cy.elements(":selected").map(element => element.id())

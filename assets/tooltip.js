@@ -1,5 +1,5 @@
 export function attachTooltip(cy, attributes) {
-    if (!attributes) return;
+    if (!attributes) return () => {};
 
     const tooltip = document.createElement("div");
     Object.assign(tooltip.style, {
@@ -17,9 +17,16 @@ export function attachTooltip(cy, attributes) {
 
     document.body.appendChild(tooltip);
 
-    cy.on("mouseover mousemove", "node, edge", event => {
+    const hide = () => {
+        tooltip.style.display = "none";
+    };
+
+    const show = event => {
         const content = event.target.data("tooltip");
-        if (!content) return;
+        if (!content) {
+            hide();
+            return;
+        }
 
         const pointer = event.originalEvent;
         tooltip.textContent = content;
@@ -31,11 +38,24 @@ export function attachTooltip(cy, attributes) {
                 ? `${pointer.clientX - tooltip.offsetWidth - gap}px`
                 : `${pointer.clientX + gap}px`;
         tooltip.style.top = `${pointer.clientY + gap}px`;
-    });
+    };
 
-    cy.on("mouseout", "node, edge", () => {
-        tooltip.style.display = "none";
-    });
+    let disposed = false;
+    const dispose = () => {
+        if (disposed) return;
+        disposed = true;
 
-    cy.on("destroy", () => tooltip.remove());
+        cy.off("mouseover mousemove", "node, edge", show);
+        cy.off("mouseout remove", "node, edge", hide);
+        cy.off("pan zoom tap", hide);
+        cy.off("destroy", dispose);
+        tooltip.remove();
+    };
+
+    cy.on("mouseover mousemove", "node, edge", show);
+    cy.on("mouseout remove", "node, edge", hide);
+    cy.on("pan zoom tap", hide);
+    cy.on("destroy", dispose);
+
+    return dispose;
 }
