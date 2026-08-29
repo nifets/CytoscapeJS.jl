@@ -14,11 +14,12 @@ const tooltip_asset = Bonito.ES6Module(
     joinpath(@__DIR__, "..", "assets", "tooltip.js"),
 )
 
-struct Cytoscape{E, S, L, R, T, A}
+struct Cytoscape{E, S, L, R, F, T, A}
     elements::E
     stylesheet::S
     layout::L
     renderer::R
+    setup::F
     tooltip_attributes::T
     selection::Observable{Vector{String}}
     hovered::Observable{Union{Nothing, String}}
@@ -35,6 +36,7 @@ function Cytoscape(
     stylesheet = [],
     layout = (; name = "fcose"),
     renderer = (; name = "canvas"),
+    setup = nothing,
     tooltip_attributes = (; class="cytoscapejs-tooltip"),
     attributes = (; style = "width: 100%; height: 100%; min-height: 400px"),
 )
@@ -43,6 +45,7 @@ function Cytoscape(
         as_observable(stylesheet),
         as_observable(layout),
         renderer,
+        setup,
         tooltip_attributes,
         Observable(String[]),
         Observable{Union{Nothing, String}}(nothing),
@@ -81,6 +84,8 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
                 layout: $(graph.layout[]),
                 renderer: $(graph.renderer),
             })
+            const setup = $(graph.setup)
+            if (setup) await setup(cy)
             container.cy = cy
             container.layout = $(graph.layout[]);
             const { attachTooltip } = await $(tooltip_asset);
