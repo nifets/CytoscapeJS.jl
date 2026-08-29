@@ -14,7 +14,7 @@ const tooltip_asset = Bonito.ES6Module(
     joinpath(@__DIR__, "..", "assets", "tooltip.js"),
 )
 
-struct Cytoscape{E, S, L, R, F, T, A}
+struct Cytoscape{E, S, L, R, F, T, A, O}
     elements::E
     stylesheet::S
     layout::L
@@ -26,6 +26,7 @@ struct Cytoscape{E, S, L, R, F, T, A}
     positions::Observable{Dict{String, Any}}
     commands::Observable{Any}
     attributes::A
+    options::O
 end
 
 as_observable(value::Observable) = value
@@ -39,6 +40,7 @@ function Cytoscape(
     setup = nothing,
     tooltip_attributes = (; class="cytoscapejs-tooltip"),
     attributes = (; style = "width: 100%; height: 100%; min-height: 400px"),
+    kwargs...
 )
     Cytoscape(
         as_observable(elements),
@@ -51,7 +53,8 @@ function Cytoscape(
         Observable{Union{Nothing, String}}(nothing),
         Observable(Dict{String, Any}()),
         Observable{Any}(nothing),
-        attributes
+        attributes,
+        (;kwargs...)
     )
 end
 
@@ -78,6 +81,7 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
             await document.fonts.ready;
 
             const cy = cytoscape({
+                ...$(graph.options),
                 container,
                 elements: $(graph.elements[]),
                 style: $(graph.stylesheet[]),
