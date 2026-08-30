@@ -47,14 +47,14 @@ export function attachTooltip(cy, attributes) {
 
         cy.off("mouseover mousemove", "node, edge", show);
         cy.off("mouseout remove", "node, edge", hide);
-        cy.off("pan zoom tap", hide);
+        cy.off("pan zoom tap filter", hide);
         cy.off("destroy", dispose);
         tooltip.remove();
     };
 
     cy.on("mouseover mousemove", "node, edge", show);
     cy.on("mouseout remove", "node, edge", hide);
-    cy.on("pan zoom tap", hide);
+    cy.on("pan zoom tap filter", hide);
     cy.on("destroy", dispose);
 
     return dispose;

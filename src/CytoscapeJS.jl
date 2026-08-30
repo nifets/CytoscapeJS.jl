@@ -4,7 +4,7 @@ using Observables: Observable
 using Bonito
 using Bonito: DOM, Session, onjs, onload, @js_str
 
-export Cytoscape, fit!, center!, run_layout!
+export Cytoscape, fit!, center!, run_layout!, set_filter!
 
 const cytoscape_asset = Bonito.Asset(
     joinpath(@__DIR__, "..", "assets", "cytoscape.js");
@@ -24,6 +24,7 @@ struct Cytoscape{E, S, L, R, F, T, A, O}
     selection::Observable{Vector{String}}
     hovered::Observable{Union{Nothing, String}}
     positions::Observable{Dict{String, Any}}
+    filters::Observable{Dict{String, Any}}
     commands::Observable{Any}
     attributes::A
     options::O
@@ -52,6 +53,7 @@ function Cytoscape(
         Observable(String[]),
         Observable{Union{Nothing, String}}(nothing),
         Observable(Dict{String, Any}()),
+        Observable(Dict{String, Any}()),
         Observable{Any}(nothing),
         attributes,
         (;kwargs...)
@@ -73,6 +75,17 @@ function run_layout!(graph::Cytoscape)
     return graph
 end
 
+function set_filter!(graph::Cytoscape, field, value)
+    filters = copy(graph.filters[])
+    if value === nothing
+        delete!(filters, string(field))
+    else
+        filters[string(field)] = value
+    end
+    graph.filters[] = filters
+    return graph
+end
+
 function Bonito.jsrender(session::Session, graph::Cytoscape)
     container = DOM.div(; graph.attributes...)
     onload(session, container, js"""
@@ -88,6 +101,28 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
                 layout: $(graph.layout[]),
                 renderer: $(graph.renderer),
             })
+            const filters = new Map(Object.entries($(graph.filters[])));
+            const applyFilters = elements => {
+                elements.forEach(element => {
+                    for (const [field, value] of filters) {
+                        const variant = element.data("variants")?.[field]?.[value];
+                        if (variant) element.data(variant);
+                    }
+                    const filtered = [...filters].some(([field, value]) => {
+                        const fieldValue = element.data(field);
+                        if (fieldValue == null) return false;
+                        if (Array.isArray(fieldValue)) {
+                            return fieldValue.length > 0 && !fieldValue.includes(value);
+                        }
+                        return fieldValue !== value;
+                    });
+                    element.toggleClass("filtered", filtered);
+                });
+            };
+            cy.scratch("filters", filters);
+            cy.scratch("applyFilters", applyFilters);
+            cy.on("add", event => applyFilters(event.target));
+            applyFilters(cy.elements());
             const setup = $(graph.setup)
             if (setup) await setup(cy)
             container.cy = cy
@@ -171,6 +206,19 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
             })
         }
     """)
+    onjs(session, graph.filters, js"""
+        values => {
+            const cy = $(container).cy;
+            if (!cy) return;
+            const filters = cy.scratch("filters");
+            filters.clear();
+            Object.entries(values).forEach(([field, value]) => {
+                filters.set(field, value);
+            });
+            cy.batch(() => cy.scratch("applyFilters")(cy.elements()));
+            cy.emit("filter");
+        }
+    """)
     onjs(session, graph.commands, js"""
         command => {
             const cy = $(container).cy
@@ -178,7 +226,7 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
             const actions = {
                 fit: () => cy.fit(undefined, command.padding),
                 center: () => cy.center(),
-                layout: () => cy.layout(command.layout).run()
+                layout: () => cy.layout(command.layout).run(),
             };
             actions[command.action]?.();
         }
