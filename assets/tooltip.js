@@ -29,15 +29,18 @@ export function attachTooltip(cy, attributes) {
         }
 
         const pointer = event.originalEvent;
+        const bounds = cy.container().getBoundingClientRect();
+        const x = pointer?.clientX ?? bounds.left + event.renderedPosition.x;
+        const y = pointer?.clientY ?? bounds.top + event.renderedPosition.y;
         tooltip.textContent = content;
         tooltip.style.display = "block";
 
         const gap = 12;
         tooltip.style.left =
-            pointer.clientX + tooltip.offsetWidth + gap > window.innerWidth
-                ? `${pointer.clientX - tooltip.offsetWidth - gap}px`
-                : `${pointer.clientX + gap}px`;
-        tooltip.style.top = `${pointer.clientY + gap}px`;
+            x + tooltip.offsetWidth + gap > window.innerWidth
+                ? `${x - tooltip.offsetWidth - gap}px`
+                : `${x + gap}px`;
+        tooltip.style.top = `${y + gap}px`;
     };
 
     let disposed = false;
