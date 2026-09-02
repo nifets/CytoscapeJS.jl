@@ -5,6 +5,7 @@
     },
     "dependencies": {
         "cytoscape": "3.34.2",
+        "cytoscape-cola": "2.5.1",
         "cytoscape-fcose": "2.2.0"
     },
     "devDependencies": {

@@ -90,6 +90,9 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
     container = DOM.div(; graph.attributes...)
     onload(session, container, js"""
         async function (container) {
+            const selection = $(graph.selection);
+            const hovered = $(graph.hovered);
+            const positionState = $(graph.positions);
             const cytoscape = await $(cytoscape_asset);
             await document.fonts.ready;
 
@@ -127,6 +130,10 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
             if (setup) await setup(cy)
             container.cy = cy
             container.layout = $(graph.layout[]);
+            const initiallySelected = new Set($(graph.selection[]));
+            cy.elements().forEach(element => {
+                if (initiallySelected.has(element.id())) element.select();
+            });
             const { attachTooltip } = await $(tooltip_asset);
             const disposeTooltip = attachTooltip(
                 cy,
@@ -144,23 +151,33 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
                 subtree: true,
             });
             cy.on("destroy", () => observer.disconnect());
+            let selectionPending = false;
             cy.on("select unselect", "node, edge", () => {
-                $(graph.selection).notify(
-                    cy.elements(":selected").map(element => element.id())
-                )
+                if (container.syncingSelection) return;
+                if (selectionPending) return;
+
+                selectionPending = true;
+                queueMicrotask(() => {
+                    selectionPending = false;
+                    if (cy.destroyed()) return;
+                    selection.notify(
+                        cy.elements(":selected").map(element => element.id())
+                    );
+                });
             });
             cy.on("mouseover", "node, edge", event => {
-                $(graph.hovered).notify(event.target.id())
+                hovered.notify(event.target.id())
             });
             cy.on("mouseout", "node, edge", () => {
-                $(graph.hovered).notify(null);
+                hovered.notify(null);
             });
             const sendPositions = () => {
+                if (!container.isConnected || cy.destroyed()) return;
                 const positions = {};
                 cy.nodes().forEach(node => {
                     positions[node.id()] = node.position();
                 })
-                $(graph.positions).notify(positions);
+                positionState.notify(positions);
             }
             cy.on("dragfree", "node", sendPositions);
             cy.on("layoutstop", sendPositions);
@@ -170,16 +187,20 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
 
     onjs(session, graph.elements, js"""
         elements => {
-            const cy = $(container).cy;
+            const container = $(container);
+            if (!container) return false;
+            const cy = container.cy;
             if (!cy) return;
             cy.elements().remove()
             cy.add(elements);
-            cy.layout($(container).layout).run()
+            cy.layout(container.layout).run()
         }
     """)
     onjs(session, graph.stylesheet, js"""
         stylesheet => {
-            const cy = $(container).cy;
+            const container = $(container);
+            if (!container) return false;
+            const cy = container.cy;
             if (!cy) return;
             cy.style().fromJson(stylesheet).update();
         }
@@ -187,6 +208,7 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
     onjs(session, graph.layout, js"""
         layout => {
             const container = $(container)
+            if (!container) return false;
             if (!container.cy) return;
             container.layout = layout;
             container.cy.layout(layout).run();
@@ -194,7 +216,9 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
     """)
     onjs(session, graph.positions, js"""
         positions => {
-            const cy = $(container).cy;
+            const container = $(container);
+            if (!container) return false;
+            const cy = container.cy;
             if (!cy) return
             cy.batch(() => {
                 Object.entries(positions).forEach(([id, position]) => {
@@ -208,7 +232,9 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
     """)
     onjs(session, graph.filters, js"""
         values => {
-            const cy = $(container).cy;
+            const container = $(container);
+            if (!container) return false;
+            const cy = container.cy;
             if (!cy) return;
             const filters = cy.scratch("filters");
             filters.clear();
@@ -221,7 +247,9 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
     """)
     onjs(session, graph.commands, js"""
         command => {
-            const cy = $(container).cy
+            const container = $(container);
+            if (!container) return false;
+            const cy = container.cy
             if (!cy || !command) return;
             const actions = {
                 fit: () => cy.fit(undefined, command.padding),
@@ -229,6 +257,27 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
                 layout: () => cy.layout(command.layout).run(),
             };
             actions[command.action]?.();
+        }
+    """)
+    onjs(session, graph.selection, js"""
+        ids => {
+            const container = $(container);
+            if (!container) return false;
+            const cy = container.cy;
+            if (!cy) return;
+
+            const selected = new Set(ids);
+
+            container.syncingSelection = true;
+            cy.batch(() => {
+                cy.elements().forEach(element => {
+                    const shouldSelect = selected.has(element.id());
+                    if (shouldSelect !== element.selected()) {
+                        shouldSelect ? element.select() : element.unselect();
+                    }
+                });
+            });
+            container.syncingSelection = false;
         }
     """)
     return container
