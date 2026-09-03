@@ -133,7 +133,50 @@ display(App(DOM.div(
 )))
 ```
 
+### Selection
+
+```julia
+graph = Cytoscape(elements)
+
+on(graph.selection) do ids
+    @info "selected" ids
+end
+
+graph.selection[] = ["a", "b"]
+```
+
+The selection is also exposed to the page as `container.cytoscape.selection`, allowing synchronisation with other widgets without roundtripping through Julia:
+
+```julia
+app = App() do session
+    graph = Cytoscape(elements)
+    readout = DOM.span()
+    clear = DOM.button("clear")
+    container = DOM.div(graph, DOM.div(readout, clear))
+
+    onload(session, container, js"""
+        container => {
+            const graph = container.querySelector("div");
+
+            container.addEventListener("cytoscape:selection", event => {
+                if (event.target !== graph) return;
+                const ids = event.detail.selection;
+                container.querySelector("span").textContent =
+                    ids.length ? `selected: ${ids.join(", ")}` : "nothing selected";
+            });
+
+            container.querySelector("button").addEventListener("click", () => {
+                graph.cytoscape.selection.set([]);
+            });
+        }
+    """)
+
+    container
+end
+```
+
 ### Web fonts
+
 ```julia
 
 stylesheet = [
@@ -162,6 +205,7 @@ display(App(DOM.div(
 ### Enabling WebGL
 
 Cytoscape.js has experimental WebGL support making it feasible to render large graphs.
+
 ```julia
 nodes = [(; data=(; id="$i", label="$i")) for i in 1:2000]
 edges = [

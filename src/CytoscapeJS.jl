@@ -128,12 +128,52 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
             applyFilters(cy.elements());
             const setup = $(graph.setup)
             if (setup) await setup(cy)
-            container.cy = cy
-            container.layout = $(graph.layout[]);
+            const state = { cy, layout: $(graph.layout[]) };
+            container.cytoscape = state;
             const initiallySelected = new Set($(graph.selection[]));
             cy.elements().forEach(element => {
                 if (initiallySelected.has(element.id())) element.select();
             });
+            const selectedIds = () =>
+                cy.elements(":selected").map(element => element.id());
+            let announced = null;
+            const announceSelection = () => {
+                if (cy.destroyed()) return;
+                const ids = selectedIds();
+                if (announced !== null &&
+                    announced.length === ids.length &&
+                    announced.every((id, i) => id === ids[i])) return;
+
+                announced = ids;
+                container.dispatchEvent(new CustomEvent("cytoscape:selection", {
+                    bubbles: true,
+                    detail: { selection: ids },
+                }));
+            };
+            const selectionApi = {
+                get: selectedIds,
+                set: ids => {
+                    if (cy.destroyed()) return;
+                    const wanted = new Set(ids);
+                    state.syncing = true;
+                    cy.batch(() => {
+                        cy.elements().forEach(element => {
+                            const shouldSelect = wanted.has(element.id());
+                            if (shouldSelect !== element.selected()) {
+                                shouldSelect ? element.select() : element.unselect();
+                            }
+                        });
+                    });
+                    state.syncing = false;
+                    announceSelection();
+                },
+            };
+            cy.scratch("selection", selectionApi);
+            state.selection = selectionApi;
+            if (state.pending) {
+                selectionApi.set(state.pending);
+                delete state.pending;
+            }
             const { attachTooltip } = await $(tooltip_asset);
             const disposeTooltip = attachTooltip(
                 cy,
@@ -153,16 +193,15 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
             cy.on("destroy", () => observer.disconnect());
             let selectionPending = false;
             cy.on("select unselect", "node, edge", () => {
-                if (container.syncingSelection) return;
+                if (state.syncing) return;
                 if (selectionPending) return;
 
                 selectionPending = true;
                 queueMicrotask(() => {
                     selectionPending = false;
                     if (cy.destroyed()) return;
-                    selection.notify(
-                        cy.elements(":selected").map(element => element.id())
-                    );
+                    selection.notify(selectedIds());
+                    announceSelection();
                 });
             });
             cy.on("mouseover", "node, edge", event => {
@@ -182,6 +221,11 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
             cy.on("dragfree", "node", sendPositions);
             cy.on("layoutstop", sendPositions);
             cy.ready(sendPositions);
+            container.dispatchEvent(new CustomEvent("cytoscape:ready", {
+                bubbles: true,
+                detail: { selection: selectionApi },
+            }));
+            announceSelection();
         }
     """)
 
@@ -189,18 +233,18 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
         elements => {
             const container = $(container);
             if (!container) return false;
-            const cy = container.cy;
+            const cy = container.cytoscape?.cy;
             if (!cy) return;
             cy.elements().remove()
             cy.add(elements);
-            cy.layout(container.layout).run()
+            cy.layout(container.cytoscape.layout).run()
         }
     """)
     onjs(session, graph.stylesheet, js"""
         stylesheet => {
             const container = $(container);
             if (!container) return false;
-            const cy = container.cy;
+            const cy = container.cytoscape?.cy;
             if (!cy) return;
             cy.style().fromJson(stylesheet).update();
         }
@@ -209,16 +253,17 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
         layout => {
             const container = $(container)
             if (!container) return false;
-            if (!container.cy) return;
-            container.layout = layout;
-            container.cy.layout(layout).run();
+            const state = container.cytoscape;
+            if (!state?.cy) return;
+            state.layout = layout;
+            state.cy.layout(layout).run();
         }
     """)
     onjs(session, graph.positions, js"""
         positions => {
             const container = $(container);
             if (!container) return false;
-            const cy = container.cy;
+            const cy = container.cytoscape?.cy;
             if (!cy) return
             cy.batch(() => {
                 Object.entries(positions).forEach(([id, position]) => {
@@ -234,7 +279,7 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
         values => {
             const container = $(container);
             if (!container) return false;
-            const cy = container.cy;
+            const cy = container.cytoscape?.cy;
             if (!cy) return;
             const filters = cy.scratch("filters");
             filters.clear();
@@ -249,7 +294,7 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
         command => {
             const container = $(container);
             if (!container) return false;
-            const cy = container.cy
+            const cy = container.cytoscape?.cy;
             if (!cy || !command) return;
             const actions = {
                 fit: () => cy.fit(undefined, command.padding),
@@ -263,21 +308,11 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
         ids => {
             const container = $(container);
             if (!container) return false;
-            const cy = container.cy;
+            const cy = container.cytoscape?.cy;
             if (!cy) return;
 
-            const selected = new Set(ids);
-
-            container.syncingSelection = true;
-            cy.batch(() => {
-                cy.elements().forEach(element => {
-                    const shouldSelect = selected.has(element.id());
-                    if (shouldSelect !== element.selected()) {
-                        shouldSelect ? element.select() : element.unselect();
-                    }
-                });
-            });
-            container.syncingSelection = false;
+            const api = cy.scratch("selection");
+            api ? api.set(ids) : (container.cytoscape.pending = ids);
         }
     """)
     return container
