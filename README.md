@@ -90,15 +90,17 @@ stylesheet = [
 graph = Cytoscape(elements; stylesheet)
 ```
 
-### Animated layouts
+### Layouts
+
+Defaults to `fcose` (works well with compound nodes). Cytoscape's [built-in layouts](https://js.cytoscape.org/#layouts) are available, plus the bundled `fcose` and `cola`.
 
 ```julia
-graph = Cytoscape(
-    elements;
-    stylesheet,
-    layout=(; name="fcose", animate=true),
-)
+graph = Cytoscape(elements; layout=(; name="fcose", animate=true))
+
+graph.layout[] = (; name="circle")   # change layout and re-run
+run_layout!(graph)                   # re-run the current layout
 ```
+
 
 ### Tooltips
 
@@ -217,3 +219,22 @@ graph = Cytoscape([nodes; edges]; renderer=(; name="canvas", webgl=true))
 ```
 
 ![big graph](docs/assets/big_graph.png)
+
+### Custom behaviour
+
+```julia
+graph = Cytoscape(
+    elements;
+    setup = js"""
+        cy => {
+            cy.on("dbltap", "node", event => {
+                cy.animate({
+                    fit: { eles: event.target.closedNeighborhood(), padding: 50 },
+                });
+            });
+        }
+    """,
+)
+```
+
+The `setup` hook runs after the elements, stylesheets, layout and filter have been applied, but before the initial selection and the tooltips.

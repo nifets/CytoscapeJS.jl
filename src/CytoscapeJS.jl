@@ -14,6 +14,15 @@ const tooltip_asset = Bonito.ES6Module(
     joinpath(@__DIR__, "..", "assets", "tooltip.js"),
 )
 
+"""
+    Cytoscape(elements; stylesheet, layout, setup, kwargs...)
+
+A Cytoscape.js graph. `elements`, `stylesheet` and `layout` may be observables
+or plain values; extra `kwargs` are passed to the Cytoscape constructor.
+
+Its state is exposed as observables: `selection` (read/write), `hovered`,
+`positions` and `filters` (see [`set_filter!`](@ref)).
+"""
 struct Cytoscape{E, S, L, R, F, T, A, O}
     elements::E
     stylesheet::S
@@ -60,21 +69,44 @@ function Cytoscape(
     )
 end
 
+"""
+    fit!(graph; padding=30)
+
+Zoom and pan to fit all elements, leaving `padding` pixels around them.
+"""
 function fit!(graph::Cytoscape; padding=30)
     graph.commands[] = (; action="fit", padding)
     return graph
 end
 
+"""
+    center!(graph)
+
+Pan so the elements are centred, without zooming.
+"""
 function center!(graph::Cytoscape)
     graph.commands[] = (; action="center")
     return graph
 end
 
+"""
+    run_layout!(graph)
+
+Re-run the current layout.
+"""
 function run_layout!(graph::Cytoscape)
     graph.commands[] = (; action="layout", layout=graph.layout[])
     return graph
 end
 
+"""
+    set_filter!(graph, field, value)
+
+Add the `unmatched` class to elements whose `field` data does not equal`value`.
+This does not apply to elements that lack the field.
+An array-valued field matches if it contains `value`.
+Pass `nothing` to clear the filter.
+"""
 function set_filter!(graph::Cytoscape, field, value)
     filters = copy(graph.filters[])
     if value === nothing
@@ -111,7 +143,7 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
                         const variant = element.data("variants")?.[field]?.[value];
                         if (variant) element.data(variant);
                     }
-                    const filtered = [...filters].some(([field, value]) => {
+                    const unmatched = [...filters].some(([field, value]) => {
                         const fieldValue = element.data(field);
                         if (fieldValue == null) return false;
                         if (Array.isArray(fieldValue)) {
@@ -119,7 +151,7 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
                         }
                         return fieldValue !== value;
                     });
-                    element.toggleClass("filtered", filtered);
+                    element.toggleClass("unmatched", unmatched);
                 });
             };
             cy.scratch("filters", filters);
