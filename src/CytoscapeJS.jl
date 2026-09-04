@@ -40,7 +40,7 @@ struct Cytoscape{E, S, L, R, F, T, A, O}
 end
 
 as_observable(value::Observable) = value
-as_observable(value) = Observable(value)
+as_observable(value) = Observable{Any}(value)
 
 function Cytoscape(
     elements;
