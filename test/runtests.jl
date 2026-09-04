@@ -56,3 +56,5 @@ end
     @test !isempty(render(Cytoscape(elements)))
     @test !isempty(render(Cytoscape(elements; setup = js"cy => { cy.fit(); }")))
 end
+
+include("readme.jl")
