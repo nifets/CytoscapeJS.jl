@@ -10,7 +10,7 @@ function readme_blocks(path)
         if current === nothing
             if startswith(line, "#")
                 section = strip(lstrip(line, ['#', ' ']))
-            elseif startswith(line, "```julia")
+            elseif strip(line) == "```julia"
                 current = String[]
             end
         elseif startswith(line, "```")

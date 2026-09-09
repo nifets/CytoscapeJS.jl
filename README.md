@@ -1,8 +1,17 @@
 # CytoscapeJS.jl
 
-A small Julia wrapper around [Cytoscape.js](https://js.cytoscape.org/), using [Bonito.jl](https://github.com/SimonDanisch/Bonito.jl).
+[![Build Status](https://github.com/nifets/CytoscapeJS.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/nifets/CytoscapeJS.jl/actions/workflows/CI.yml)
+[![version](https://juliahub.com/docs/General/CytoscapeJS/stable/version.svg)](https://juliahub.com/ui/Packages/General/CytoscapeJS)
+
+A small Julia wrapper around [Cytoscape.js](https://js.cytoscape.org/), using [Bonito.jl](https://github.com/SimonDanisch/Bonito.jl). Its main purpose is to act as a reactive and expressive graph visualisation widget within [Pluto.jl](https://plutojl.org/) notebooks.
 
 ![compound network](docs/assets/compound.png)
+
+## Installation
+
+```julia-repl
+julia> using Pkg; Pkg.add("CytoscapeJS")
+```
 
 ## Usage
 
@@ -28,12 +37,31 @@ stylesheet = [
 ]
 
 graph = Cytoscape(elements; stylesheet)
+```
+
+Displaying from the REPL (opens a browser page):
+
+```julia
 display(App(graph))
+```
 
-# modify the graph
+Displaying within a Pluto.jl notebook:
+
+```julia
+App(graph)
+```
+
+### Updating the graph
+
+```julia
 graph.elements[] = [graph.elements[]..., (; data = (; id = "c", label = "C"))]
+```
 
-# get state
+This updates the widget in place, preserving the selection. In Pluto, you would put this in a separate cell.
+
+### Observables
+
+```julia
 on(graph.selection) do ids
     @info "selected" ids
 end
@@ -45,10 +73,6 @@ end
 on(graph.positions) do positions
     @info "positions changed" positions
 end
-
-# update viewport
-fit!(graph)
-center!(graph)
 ```
 
 ### Compound nodes
@@ -99,6 +123,10 @@ graph = Cytoscape(elements; layout=(; name="fcose", animate=true))
 
 graph.layout[] = (; name="circle")   # change layout and re-run
 run_layout!(graph)                   # re-run the current layout
+
+# update viewport
+fit!(graph)
+center!(graph)
 ```
 
 
@@ -177,10 +205,17 @@ app = App() do session
 end
 ```
 
+In Pluto, `CytoscapeJS.PlutoInput(graph.selection)` turns the selection observable into a bound notebook variable, so cells dependent on it will rerun when it changes:
+
+```julia-pluto
+@bind selected CytoscapeJS.PlutoInput(graph.selection)
+```
+
+See [`examples/pluto_notebook.jl`](examples/pluto_notebook.jl) for a demonstration.
+
 ### Web fonts
 
 ```julia
-
 stylesheet = [
     (; selector="node", style=Dict(
         "label" => "data(label)",
