@@ -3,6 +3,7 @@ module CytoscapeJS
 using Observables: Observable
 using Bonito
 using Bonito: DOM, Session, onjs, onload, @js_str
+using AbstractPlutoDingetjes: Bonds
 
 export Cytoscape, fit!, center!, run_layout!, set_filter!
 
@@ -367,5 +368,7 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
     """)
     return container
 end
+
+include("pluto_input.jl")
 
 end
