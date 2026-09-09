@@ -267,9 +267,27 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
             if (!container) return false;
             const cy = container.cytoscape?.cy;
             if (!cy) return;
-            cy.elements().remove()
-            cy.add(elements);
-            cy.layout(container.cytoscape.layout).run()
+            const selection = $(graph.selection);
+
+            const selected = cy.elements(":selected").map(e => e.id());
+            const incoming = new Map(elements.map(e => [e.data.id, e]));
+
+            cy.batch(() => {
+                cy.elements().filter(e => !incoming.has(e.id())).remove();
+                cy.elements().forEach(e => {
+                    const next = incoming.get(e.id());
+                    if (next) e.data(next.data);
+                });
+            });
+
+            const added = elements.filter(e => cy.getElementById(e.data.id).empty());
+            cy.add(added);
+
+            const survivors = selected.filter(id => cy.getElementById(id).nonempty());
+            if (added.length || survivors.length !== selected.length) {
+                cy.layout(container.cytoscape.layout).run();
+            }
+            if (survivors.length !== selected.length) selection.notify(survivors);
         }
     """)
     onjs(session, graph.stylesheet, js"""
