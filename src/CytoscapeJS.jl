@@ -119,6 +119,8 @@ function set_filter!(graph::Cytoscape, field, value)
     return graph
 end
 
+Base.show(io::IO, m::MIME"text/html", g::Cytoscape) = show(io, m, CytoscapeJS.Bonito.App(g))
+
 function Bonito.jsrender(session::Session, graph::Cytoscape)
     container = DOM.div(; graph.attributes...)
     onload(session, container, js"""
