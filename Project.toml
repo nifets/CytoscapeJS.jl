@@ -1,6 +1,6 @@
 name = "CytoscapeJS"
 uuid = "5d7a634b-b62e-4929-ba77-69c999086e42"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["nifets <stefanmanol@gmail.com>"]
 
 [deps]
