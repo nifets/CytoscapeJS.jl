@@ -1,11 +1,12 @@
 module CytoscapeJS
 
-using Observables: Observable
+using Observables: Observable, on
+using Base64: base64decode
 using Bonito
 using Bonito: DOM, Session, onjs, onload, @js_str
 using AbstractPlutoDingetjes: Bonds
 
-export Cytoscape, fit!, center!, run_layout!, set_filter!
+export Cytoscape, fit!, center!, run_layout!, set_filter!, download!, save!
 
 const cytoscape_asset = Bonito.Asset(
     joinpath(@__DIR__, "..", "assets", "cytoscape.js");
@@ -53,6 +54,11 @@ function Cytoscape(
     attributes = (; style = "width: 100%; height: 100%; min-height: 400px"),
     kwargs...
 )
+    commands = Observable{Any}(nothing)
+    on(commands) do command
+        command isa AbstractDict && get(command, "action", nothing) == "saved" || return
+        write(command["path"], command["format"] == "svg" ? command["data"] : base64decode(command["data"]))
+    end
     Cytoscape(
         as_observable(elements),
         as_observable(stylesheet),
@@ -64,7 +70,7 @@ function Cytoscape(
         Observable{Union{Nothing, String}}(nothing),
         Observable(Dict{String, Any}()),
         Observable(Dict{String, Any}()),
-        Observable{Any}(nothing),
+        commands,
         attributes,
         (;kwargs...)
     )
@@ -97,6 +103,36 @@ Re-run the current layout.
 """
 function run_layout!(graph::Cytoscape)
     graph.commands[] = (; action="layout", layout=graph.layout[])
+    return graph
+end
+
+"""
+    download!(graph, filename="graph.svg"; full=true, scale=1, bg=nothing)
+
+Download the graph as an SVG or PNG image, chosen by the extension of `filename`.
+
+# Keywords
+- `full`: export all elements rather than the current viewport.
+- `scale`: resolution scale
+- `bg`: CSS background colour, with `nothing` meaning transparent.
+"""
+function download!(graph::Cytoscape, filename="graph.svg"; full=true, scale=1, bg=nothing)
+    format = lowercase(last(splitext(filename)))[2:end]
+    format in ("svg", "png") || throw(ArgumentError("filename must end in .svg or .png"))
+    graph.commands[] = (; action="download", filename, format, options=(; full, scale, bg))
+    return graph
+end
+
+"""
+    save!(graph, path; full=true, scale=1, bg=nothing)
+
+Write the graph to `path` as an SVG or PNG image, chosen by its extension.
+Takes the same keywords as [`download!`](@ref).
+"""
+function save!(graph::Cytoscape, path; full=true, scale=1, bg=nothing)
+    format = lowercase(last(splitext(path)))[2:end]
+    format in ("svg", "png") || throw(ArgumentError("path must end in .svg or .png"))
+    graph.commands[] = (; action="save", path=abspath(path), format, options=(; full, scale, bg))
     return graph
 end
 
@@ -353,6 +389,24 @@ function Bonito.jsrender(session::Session, graph::Cytoscape)
                 fit: () => cy.fit(undefined, command.padding),
                 center: () => cy.center(),
                 layout: () => cy.layout(command.layout).run(),
+                download: () => {
+                    const url = command.format === "svg"
+                        ? URL.createObjectURL(new Blob([cy.svg(command.options)], { type: "image/svg+xml" }))
+                        : cy.png(command.options);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = command.filename;
+                    link.click();
+                    if (command.format === "svg") URL.revokeObjectURL(url);
+                },
+                save: () => $(graph.commands).notify({
+                    action: "saved",
+                    path: command.path,
+                    format: command.format,
+                    data: command.format === "svg"
+                        ? cy.svg(command.options)
+                        : cy.png({ ...command.options, output: "base64" }),
+                }),
             };
             actions[command.action]?.();
         }
